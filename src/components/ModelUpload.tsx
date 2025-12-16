@@ -8,12 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { Upload, X, Plus, FileCode } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ModelUploadProps {
   onUploadSuccess: () => void;
 }
 
 const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
+  const { user } = useAuth();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState('classification');
@@ -42,6 +44,11 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!user) {
+      toast.error('You must be logged in to upload models');
+      return;
+    }
+    
     if (!name.trim()) {
       toast.error('Please enter a model name');
       return;
@@ -57,10 +64,10 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
     try {
       let filePath = null;
 
-      // Upload file if provided
+      // Upload file if provided (stored in user-specific folder)
       if (file) {
         const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}-${name.replace(/\s+/g, '-')}.${fileExt}`;
+        const fileName = `${user.id}/${Date.now()}-${name.replace(/\s+/g, '-')}.${fileExt}`;
         
         const { error: uploadError } = await supabase.storage
           .from('models')
@@ -73,7 +80,7 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
         filePath = fileName;
       }
 
-      // Insert model metadata
+      // Insert model metadata with user_id
       const { error: insertError } = await supabase
         .from('models')
         .insert({
@@ -81,7 +88,8 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
           description,
           type,
           features,
-          file_path: filePath
+          file_path: filePath,
+          user_id: user.id
         });
 
       if (insertError) {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import DashboardSidebar from '@/components/DashboardSidebar';
 import ModelSelector from '@/components/ModelSelector';
 import ModelUpload from '@/components/ModelUpload';
+import { useAuth } from '@/hooks/useAuth';
 import FeatureInput from '@/components/FeatureInput';
 import APIConfigPanel from '@/components/APIConfig';
 import ExplanationPanel from '@/components/ExplanationPanel';
@@ -9,11 +10,14 @@ import StatsCard from '@/components/StatsCard';
 import { Card } from '@/components/ui/card';
 import { sampleModels, sampleFeatureValues, sampleSHAPData, sampleLIMEData } from '@/data/sampleData';
 import { ModelInfo, APIConfig, SHAPExplanation, LIMEExplanation } from '@/types/xai';
-import { Brain, BarChart3, Layers, Zap, Activity, Sparkles } from 'lucide-react';
+import { Brain, BarChart3, Layers, Zap, Activity, Sparkles, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
+import { Button } from '@/components/ui/button';
+
 const Index = () => {
+  const { user, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedModel, setSelectedModel] = useState<ModelInfo | null>(null);
   const [apiConfig, setApiConfig] = useState<APIConfig>({ baseUrl: 'http://localhost:5000/api' });
@@ -350,7 +354,7 @@ const Index = () => {
           <div className="flex items-center gap-4">
             <h1 className="text-lg font-semibold text-foreground capitalize">{activeTab}</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <span className="font-mono text-xs text-muted-foreground">
               API: {connectionStatus === 'connected' ? 'Connected' : 'Using Sample Data'}
             </span>
@@ -359,6 +363,11 @@ const Index = () => {
                 connectionStatus === 'connected' ? 'bg-positive' : 'bg-negative'
               }`}
             />
+            <span className="text-sm text-muted-foreground">{user?.email}</span>
+            <Button variant="ghost" size="sm" onClick={signOut} className="gap-2">
+              <LogOut className="h-4 w-4" />
+              Sign Out
+            </Button>
           </div>
         </header>
 
