@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardSidebar from '@/components/DashboardSidebar';
 import ModelSelector from '@/components/ModelSelector';
+import ModelUpload from '@/components/ModelUpload';
 import FeatureInput from '@/components/FeatureInput';
 import APIConfigPanel from '@/components/APIConfig';
 import ExplanationPanel from '@/components/ExplanationPanel';
@@ -10,6 +11,7 @@ import { sampleModels, sampleFeatureValues, sampleSHAPData, sampleLIMEData } fro
 import { ModelInfo, APIConfig, SHAPExplanation, LIMEExplanation } from '@/types/xai';
 import { Brain, BarChart3, Layers, Zap, Activity, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -21,7 +23,39 @@ const Index = () => {
   const [limeData, setLimeData] = useState<LIMEExplanation | null>(null);
   const [prediction, setPrediction] = useState<string | number | undefined>();
   const [probability, setProbability] = useState<number | undefined>();
+  const [uploadedModels, setUploadedModels] = useState<ModelInfo[]>([]);
   const { toast } = useToast();
+
+  // Fetch uploaded models from database
+  const fetchModels = async () => {
+    const { data, error } = await supabase
+      .from('models')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching models:', error);
+      return;
+    }
+
+    if (data) {
+      const models: ModelInfo[] = data.map((m) => ({
+        id: m.id,
+        name: m.name,
+        type: m.type,
+        features: Array.isArray(m.features) ? m.features as string[] : [],
+        description: m.description || ''
+      }));
+      setUploadedModels(models);
+    }
+  };
+
+  useEffect(() => {
+    fetchModels();
+  }, []);
+
+  // Combine sample models with uploaded models
+  const allModels = [...uploadedModels, ...sampleModels];
 
   const handleModelSelect = (model: ModelInfo) => {
     setSelectedModel(model);
@@ -87,17 +121,17 @@ const Index = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatsCard
                 title="Models Available"
-                value={sampleModels.length}
+                value={allModels.length}
                 subtitle="Ready for analysis"
                 icon={<Brain className="h-6 w-6" />}
                 delay={0}
               />
               <StatsCard
-                title="Predictions Today"
-                value="24"
-                subtitle="Across all models"
+                title="Uploaded Models"
+                value={uploadedModels.length}
+                subtitle="Your custom models"
                 icon={<Activity className="h-6 w-6" />}
-                trend={{ value: 12, isPositive: true }}
+                trend={uploadedModels.length > 0 ? { value: uploadedModels.length, isPositive: true } : undefined}
                 delay={100}
               />
               <StatsCard
@@ -130,7 +164,7 @@ const Index = () => {
                       1
                     </span>
                     <span className="text-muted-foreground">
-                      Configure your Flask API endpoint in Settings
+                      Upload your model or use existing ones from Models tab
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -138,7 +172,7 @@ const Index = () => {
                       2
                     </span>
                     <span className="text-muted-foreground">
-                      Select a model from the Models tab
+                      Select a model to analyze
                     </span>
                   </li>
                   <li className="flex items-start gap-3">
@@ -192,14 +226,26 @@ const Index = () => {
             <div>
               <h2 className="text-2xl font-bold text-foreground">Available Models</h2>
               <p className="text-muted-foreground mt-1">
-                Select a model to analyze and explain predictions
+                Select a model to analyze or upload your own
               </p>
             </div>
-            <ModelSelector
-              models={sampleModels}
-              selectedModel={selectedModel}
-              onSelect={handleModelSelect}
-            />
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <h3 className="text-lg font-semibold text-foreground mb-4">
+                  {uploadedModels.length > 0 ? 'Your Models & Sample Models' : 'Sample Models'}
+                </h3>
+                <ModelSelector
+                  models={allModels}
+                  selectedModel={selectedModel}
+                  onSelect={handleModelSelect}
+                />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground mb-4">Add New Model</h3>
+                <ModelUpload onUploadSuccess={fetchModels} />
+              </div>
+            </div>
           </div>
         );
 
