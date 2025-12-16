@@ -8,7 +8,7 @@ import APIConfigPanel from '@/components/APIConfig';
 import ExplanationPanel from '@/components/ExplanationPanel';
 import StatsCard from '@/components/StatsCard';
 import { Card } from '@/components/ui/card';
-import { sampleModels, sampleFeatureValues, sampleSHAPData, sampleLIMEData } from '@/data/sampleData';
+import { sampleModels, sampleFeatureValues, sampleSHAPDataByModel, sampleLIMEDataByModel } from '@/data/sampleData';
 import { ModelInfo, APIConfig, SHAPExplanation, LIMEExplanation } from '@/types/xai';
 import { Brain, BarChart3, Layers, Zap, Activity, Sparkles, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -78,11 +78,15 @@ const Index = () => {
     try {
       await new Promise((resolve) => setTimeout(resolve, 1500));
       
-      // Using sample data for demonstration
-      setShapData(sampleSHAPData);
-      setLimeData(sampleLIMEData);
-      setPrediction(sampleLIMEData.prediction);
-      setProbability(sampleLIMEData.confidence);
+      // Get model-specific data or generate fallback for uploaded models
+      const modelId = selectedModel?.id || '';
+      const shapExplanation = sampleSHAPDataByModel[modelId] || generateFallbackSHAP(selectedModel);
+      const limeExplanation = sampleLIMEDataByModel[modelId] || generateFallbackLIME(selectedModel);
+      
+      setShapData(shapExplanation);
+      setLimeData(limeExplanation);
+      setPrediction(limeExplanation.prediction);
+      setProbability(limeExplanation.confidence);
       
       toast({
         title: 'Prediction Complete',
@@ -97,6 +101,40 @@ const Index = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Generate fallback SHAP data for uploaded models
+  const generateFallbackSHAP = (model: ModelInfo | null): SHAPExplanation => {
+    if (!model) return { baseValue: 0.5, outputValue: 0.7, features: [] };
+    
+    const features = model.features.map((f, i) => ({
+      feature: f,
+      importance: (Math.random() - 0.5) * 0.4,
+      direction: Math.random() > 0.5 ? 'positive' as const : 'negative' as const,
+    })).sort((a, b) => Math.abs(b.importance) - Math.abs(a.importance));
+    
+    return {
+      baseValue: 0.5,
+      outputValue: 0.5 + features.reduce((sum, f) => sum + f.importance, 0),
+      features,
+    };
+  };
+
+  // Generate fallback LIME data for uploaded models
+  const generateFallbackLIME = (model: ModelInfo | null): LIMEExplanation => {
+    if (!model) return { prediction: 'Unknown', confidence: 0.5, features: [] };
+    
+    const features = model.features.slice(0, 6).map((f) => ({
+      feature: `${f} condition`,
+      importance: (Math.random() - 0.3) * 0.5,
+      direction: Math.random() > 0.4 ? 'positive' as const : 'negative' as const,
+    }));
+    
+    return {
+      prediction: model.type.includes('Classifier') ? 'Class A' : '$' + Math.floor(Math.random() * 500000 + 100000).toLocaleString(),
+      confidence: 0.6 + Math.random() * 0.3,
+      features,
+    };
   };
 
   const handleTestConnection = async () => {
