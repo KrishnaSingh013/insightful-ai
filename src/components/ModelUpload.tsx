@@ -9,6 +9,25 @@ import { Upload, X, Plus, FileCode } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { z } from 'zod';
+
+// Input validation schema
+const featureSchema = z.string()
+  .min(1, 'Feature name is required')
+  .max(50, 'Feature name must be less than 50 characters')
+  .regex(/^[a-zA-Z0-9_\s-]+$/, 'Feature name can only contain letters, numbers, spaces, underscores, and hyphens');
+
+const modelSchema = z.object({
+  name: z.string()
+    .min(1, 'Model name is required')
+    .max(100, 'Model name must be less than 100 characters')
+    .trim(),
+  description: z.string()
+    .max(1000, 'Description must be less than 1000 characters')
+    .optional(),
+  type: z.enum(['classification', 'regression', 'clustering', 'neural-network']),
+  features: z.array(featureSchema).min(1, 'At least one feature is required').max(100, 'Maximum 100 features allowed')
+});
 
 interface ModelUploadProps {
   onUploadSuccess: () => void;
@@ -18,17 +37,34 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
   const { user } = useAuth();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState('classification');
+  const [type, setType] = useState<'classification' | 'regression' | 'clustering' | 'neural-network'>('classification');
   const [features, setFeatures] = useState<string[]>([]);
   const [newFeature, setNewFeature] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
   const handleAddFeature = () => {
-    if (newFeature.trim() && !features.includes(newFeature.trim())) {
-      setFeatures([...features, newFeature.trim()]);
-      setNewFeature('');
+    const trimmed = newFeature.trim();
+    if (!trimmed) return;
+    
+    const result = featureSchema.safeParse(trimmed);
+    if (!result.success) {
+      toast.error(result.error.errors[0].message);
+      return;
     }
+    
+    if (features.includes(trimmed)) {
+      toast.error('Feature already exists');
+      return;
+    }
+    
+    if (features.length >= 100) {
+      toast.error('Maximum 100 features allowed');
+      return;
+    }
+    
+    setFeatures([...features, trimmed]);
+    setNewFeature('');
   };
 
   const handleRemoveFeature = (feature: string) => {
@@ -37,7 +73,13 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      // Validate file size (max 50MB)
+      if (selectedFile.size > 50 * 1024 * 1024) {
+        toast.error('File size must be less than 50MB');
+        return;
+      }
+      setFile(selectedFile);
     }
   };
 
@@ -48,14 +90,17 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
       toast.error('You must be logged in to upload models');
       return;
     }
-    
-    if (!name.trim()) {
-      toast.error('Please enter a model name');
-      return;
-    }
-    
-    if (features.length === 0) {
-      toast.error('Please add at least one feature');
+
+    // Validate all inputs
+    const validation = modelSchema.safeParse({
+      name: name.trim(),
+      description: description.trim() || undefined,
+      type,
+      features
+    });
+
+    if (!validation.success) {
+      toast.error(validation.error.errors[0].message);
       return;
     }
 
@@ -67,7 +112,8 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
       // Upload file if provided (stored in user-specific folder)
       if (file) {
         const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/${Date.now()}-${name.replace(/\s+/g, '-')}.${fileExt}`;
+        const sanitizedName = validation.data.name.replace(/[^a-zA-Z0-9-_]/g, '-');
+        const fileName = `${user.id}/${Date.now()}-${sanitizedName}.${fileExt}`;
         
         const { error: uploadError } = await supabase.storage
           .from('models')
@@ -84,10 +130,10 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
       const { error: insertError } = await supabase
         .from('models')
         .insert({
-          name,
-          description,
-          type,
-          features,
+          name: validation.data.name,
+          description: validation.data.description || null,
+          type: validation.data.type,
+          features: validation.data.features,
           file_path: filePath,
           user_id: user.id
         });
@@ -107,8 +153,10 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
       
       onUploadSuccess();
     } catch (error) {
-      console.error('Upload error:', error);
-      toast.error('Failed to upload model');
+      if (import.meta.env.DEV) {
+        console.error('Upload error:', error);
+      }
+      toast.error('Failed to upload model. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -135,6 +183,7 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g., Credit Risk Classifier"
             className="bg-background border-border"
+            maxLength={100}
           />
         </div>
 
@@ -147,6 +196,7 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
             placeholder="Describe what this model does..."
             className="bg-background border-border resize-none"
             rows={3}
+            maxLength={1000}
           />
         </div>
 
@@ -155,7 +205,7 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
           <select
             id="type"
             value={type}
-            onChange={(e) => setType(e.target.value)}
+            onChange={(e) => setType(e.target.value as typeof type)}
             className="w-full h-10 px-3 rounded-md bg-background border border-border text-foreground"
           >
             <option value="classification">Classification</option>
@@ -166,13 +216,14 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
         </div>
 
         <div className="space-y-2">
-          <Label>Features</Label>
+          <Label>Features ({features.length}/100)</Label>
           <div className="flex gap-2">
             <Input
               value={newFeature}
               onChange={(e) => setNewFeature(e.target.value)}
               placeholder="Add feature name"
               className="bg-background border-border"
+              maxLength={50}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -198,7 +249,7 @@ const ModelUpload = ({ onUploadSuccess }: ModelUploadProps) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="file">Model File (optional)</Label>
+          <Label htmlFor="file">Model File (optional, max 50MB)</Label>
           <div className="flex items-center gap-3">
             <Input
               id="file"
