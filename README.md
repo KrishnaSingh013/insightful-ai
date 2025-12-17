@@ -1,4 +1,4 @@
-## Project Title: Explainable AI Dashboard
+## Project Title: X-Model Visualizer
 # Overview
 
 This project is an interactive dashboard for Explainable AI (XAI) which provides visualizations of machine learning model predictions and insights. The dashboard integrates various charting techniques like SHAP and **LIME** for model explainability, alongside features to upload, select, and view machine learning models.
