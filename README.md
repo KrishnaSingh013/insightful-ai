@@ -17,17 +17,17 @@ Tailwind CSS
 
 Shadcn UI Components
 
-**Backend**:
+**Backend:-**
 
 Supabase (for database & authentication)
 
-**Data Visualization**:
+**Data Visualization:-**:
 
 SHAP (Shapley Additive Explanations)
 
 LIME (Local Interpretable Model-Agnostic Explanations)
 
-**State Management**:
+**State Management:-**
 
 React Hooks
 
