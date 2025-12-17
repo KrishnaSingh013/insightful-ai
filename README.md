@@ -7,7 +7,7 @@ The project is divided into four core modules, handled by different team members
 
 # Tech Stack
 
-**Frontend:**
+**Frontend:-**
 
 React.js
 
