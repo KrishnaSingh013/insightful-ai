@@ -5,22 +5,6 @@ This project is an interactive dashboard for Explainable AI (XAI) which provides
 
 The project is divided into four core modules, handled by different team members for efficient development and maintenance.
 
-# Table of Contents
-
-1) Tech Stack
-
-2) Project Structure
-
-3) Installation
-
-4) Running Locally
-
-5) Video Demonstration
-
-6) Contributing
-
-7) Team Members
-
 # Tech Stack
 
 **Frontend:**
